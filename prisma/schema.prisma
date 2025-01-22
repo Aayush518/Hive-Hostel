@@ -1,0 +1,177 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  password      String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  wallets       Wallet[]
+  expenses      Expense[]
+  loans         Loan[]    @relation("Lender")
+  borrowedLoans Loan[]    @relation("Borrower")
+  guaranteedLoans Loan[]  @relation("Guarantor")
+  notifications Notification[]
+}
+
+model Wallet {
+  id          String    @id @default(cuid())
+  name        String
+  balance     Float     @default(0)
+  type        String    // cash, bank, upi
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expenses    Expense[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  type        String    // EXPENSE or INCOME
+  icon        String?
+  color       String?
+  expenses    Expense[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([type])
+}
+
+model Location {
+  id          String    @id @default(cuid())
+  name        String
+  type        String    // HOSTEL, COLLEGE, RESTAURANT, etc.
+  address     String?
+  expenses    Expense[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([type])
+}
+
+model Expense {
+  id          String    @id @default(cuid())
+  amount      Float
+  type        String    // EXPENSE or INCOME
+  description String?
+  date        DateTime  @default(now())
+  categoryId  String
+  category    Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  locationId  String?
+  location    Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  walletId    String
+  wallet      Wallet    @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isRecurring Boolean   @default(false)
+  recurringInterval String? // daily, weekly, monthly, yearly
+  tags        String[]  @default([])
+  attachments Attachment[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([categoryId])
+  @@index([walletId])
+  @@index([date])
+  @@index([type])
+}
+
+model Loan {
+  id          String    @id @default(cuid())
+  amount      Float
+  description String?
+  dueDate     DateTime?
+  status      String    // PENDING, PAID, OVERDUE
+  lenderId    String
+  lender      User      @relation("Lender", fields: [lenderId], references: [id], onDelete: Cascade)
+  borrowerId  String
+  borrower    User      @relation("Borrower", fields: [borrowerId], references: [id], onDelete: Cascade)
+  guarantorId String?
+  guarantor   User?     @relation("Guarantor", fields: [guarantorId], references: [id], onDelete: SetNull)
+  installments LoanInstallment[]
+  attachments Attachment[]
+  reminders   Reminder[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([lenderId])
+  @@index([borrowerId])
+  @@index([status])
+}
+
+model LoanInstallment {
+  id          String    @id @default(cuid())
+  loanId      String
+  loan        Loan      @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  amount      Float
+  dueDate     DateTime
+  status      String    // PENDING, PAID, OVERDUE
+  paidDate    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([loanId])
+  @@index([status])
+}
+
+model Reminder {
+  id          String    @id @default(cuid())
+  loanId      String
+  loan        Loan      @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  date        DateTime
+  message     String
+  isRead      Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([loanId])
+  @@index([date])
+}
+
+model Notification {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String    // LOAN_REQUEST, LOAN_REMINDER, PAYMENT_DUE, etc.
+  title       String
+  message     String
+  isRead      Boolean   @default(false)
+  data        Json?     // Additional data specific to notification type
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([type])
+  @@index([isRead])
+}
+
+model Attachment {
+  id          String    @id @default(cuid())
+  name        String
+  url         String
+  type        String    // image, document, etc.
+  size        Int
+  expenseId   String?
+  expense     Expense?  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  loanId      String?
+  loan        Loan?     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([expenseId])
+  @@index([loanId])
+}
